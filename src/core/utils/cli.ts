@@ -1,8 +1,10 @@
-import yargs = require('yargs');
-
+import yargs from 'yargs';
 const CLI_PATTERNS: [RegExp, string][] = [
   [/npm-cli\.js$/, 'npm'],
   [/yarn\.js$/, 'yarn'],
+  [/pnpm-cli\.js$/, 'pnpm'],
+  [/bun$/, 'bun'],
+  [/deno$/, 'deno'],
 ];
 
 const EMPTY_VALUE = '@__EMTPY_VALUE__@';
@@ -35,16 +37,17 @@ export class Arguments {
           ? `${parentCommand}${command && command.length > 0 ? ` ${command}` : ''}`
           : command;
     } else if (process.env.npm_execpath && process.env.npm_lifecycle_event) {
-      this.command = `${CLI_PATTERNS.find(([pattern]) =>
-        pattern.test(process.env.npm_execpath as string),
-      )?.[1] ?? process.env.npm_execpath} ${process.env.npm_lifecycle_event}`;
+      this.command = `${
+        CLI_PATTERNS.find(([pattern]) => pattern.test(process.env.npm_execpath as string))?.[1] ??
+        process.env.npm_execpath
+      } ${process.env.npm_lifecycle_event}`;
     } else {
       this.command = command;
     }
   }
 
   get<T = string>(name: string): T {
-    return (this.parsedArgs[name] as unknown) as T;
+    return this.parsedArgs[name] as unknown as T;
   }
 
   getRemainingArgs() {
@@ -143,7 +146,7 @@ export class ArgumentsParser {
     this.arguments = baseArgs;
   }
 
-  protected parse() {
+  protected async parse() {
     const builderArgs = this.builder.getArguments();
     const builderOptions = Object.entries(this.builder.getOptions());
     const hasArgs = builderArgs.length > 0;
@@ -163,7 +166,7 @@ export class ArgumentsParser {
           },
         ];
 
-    const { _, $0, ...parsedArgs } = yargs(this.arguments.getRemainingArgs())
+    const { _, $0, ...parsedArgs } = await yargs(this.arguments.getRemainingArgs())
       .parserConfiguration({
         'unknown-options-as-args': true,
       })
@@ -172,27 +175,43 @@ export class ArgumentsParser {
         `$0 ${argumentList
           .map((args) => (args.default ? `[${args.name}]` : `<${args.name}>`))
           .join(' ')}`,
-        this.builder.getDescription() as string,
+        this.builder.getDescription(),
         (subYargs: yargs.Argv) => {
-          builderArgs.forEach(({ name, ...desc }) => subYargs.positional(name, desc as any));
-          builderOptions.forEach(([name, desc]) => subYargs.option(name, desc as any));
+          builderArgs.forEach(({ name, ...desc }) =>
+            subYargs.positional(name, {
+              ...desc,
+              choices: this._convertChoices(desc.choices),
+            }),
+          );
+          builderOptions.forEach(([name, desc]) =>
+            subYargs.option(name, {
+              ...desc,
+              choices: this._convertChoices(desc.choices),
+            }),
+          );
         },
       )
-      .help().argv;
+      .help()
+      .parseAsync();
 
-    // @ts-ignore
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars, camelcase
     const { [FIRST_ARGUMENT]: _firstArg, ...args } = parsedArgs;
     return this.arguments.createChild(
-      args as any,
-      // eslint-disable-next-line no-nested-ternary
-      hasArgs
-        ? _
-        : parsedArgs[FIRST_ARGUMENT] === EMPTY_VALUE
-        ? _
-        : [parsedArgs[FIRST_ARGUMENT] as string, ..._],
+      args as ParsedArgs,
+      this._computeRemainingArgs(hasArgs, parsedArgs, _.map((a) => a.toString())),
       builderArgs.map(({ name }) => parsedArgs[name]).join(' '),
     );
+  }
+
+  private _computeRemainingArgs(hasArgs: boolean, parsedArgs: Record<string, unknown>, remainingArgs: string[]) {
+    if (hasArgs || parsedArgs[FIRST_ARGUMENT] === EMPTY_VALUE) {
+      return remainingArgs;
+    }
+
+    return [parsedArgs[FIRST_ARGUMENT] as string, ...remainingArgs.map((a) => a.toString())];
+  }
+
+  private _convertChoices(choices: ArgumentDescrition['choices']) {
+    return choices?.map((c) => (typeof c === 'boolean' ? ((c as true) || undefined) : c));
   }
 
   static parse(builder: CommandBuilder, baseArgs?: Arguments) {

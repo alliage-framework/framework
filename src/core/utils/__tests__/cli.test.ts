@@ -4,7 +4,7 @@ import { CommandBuilder, Arguments, ArgumentsParser } from '../cli';
 import { YargsMock } from '../../../__tests__/__mocks__/yargs/types';
 
 describe('core/utils/cli', () => {
-  let PREV_ENV: any;
+  let PREV_ENV: NodeJS.ProcessEnv;
   beforeEach(() => {
     jest.resetModules();
     PREV_ENV = process.env;
@@ -34,7 +34,7 @@ describe('core/utils/cli', () => {
             describe: 'Test option 3',
             type: 'number',
             choices: [1, 2, 3],
-          });
+          })
 
         expect(cb.getOptions()).toEqual({
           'test-option1': {
@@ -116,7 +116,7 @@ describe('core/utils/cli', () => {
 
   describe('Arguments', () => {
     describe('#get', () => {
-      it("should return of the values of the 'parsedArgs‘", () => {
+      it("should return of the values of the 'parsedArgs'", () => {
         const agts = Arguments.create({ foo: 'bar', test: 42, isBoolean: true });
 
         expect(agts.get('foo')).toEqual('bar');
@@ -265,6 +265,11 @@ describe('core/utils/cli', () => {
           type: 'boolean',
           default: true,
         })
+        .addOption('test-option3', {
+          describe: 'Test option 3',
+          type: 'boolean',
+          choices: [true, false],
+        })
         .addArgument('test-argument1', {
           describe: 'Test argument 1',
           type: 'number',
@@ -276,17 +281,18 @@ describe('core/utils/cli', () => {
           default: 'default argument 2',
         });
 
-      it('should parse arguments according to the provided CommandBuilder', () => {
+      it('should parse arguments according to the provided CommandBuilder', async () => {
         const yargsMock = (yargs as unknown) as YargsMock;
         yargsMock.setExpectedArgs({
           'test-argument1': 3,
           'test-argument2': 'test',
           'test-option1': 'hello',
           'test-option2': false,
+          'test-option3': true,
           _: ['unwanted-arg'],
         });
 
-        const args = ArgumentsParser.parse(
+        const args = await ArgumentsParser.parse(
           commandBuilder,
           Arguments.create(
             {},
@@ -344,14 +350,14 @@ describe('core/utils/cli', () => {
         expect(args.getCommand()).toEqual('test-command 3 test');
       });
 
-      it("should return the same 'baseArgs' if nothing is configured in the command builder", () => {
+      it("should return the same 'baseArgs' if nothing is configured in the command builder", async () => {
         const baseArgs = Arguments.create();
-        const args = ArgumentsParser.parse(CommandBuilder.create(), baseArgs);
+        const args = await ArgumentsParser.parse(CommandBuilder.create(), baseArgs);
 
         expect(args).toBe(baseArgs);
       });
 
-      it('should allow to have no expected arguments', () => {
+      it('should allow to have no expected arguments', async () => {
         const yargsMock = (yargs as unknown) as YargsMock;
         // case1: without remaining args
         yargsMock.setExpectedArgs({
@@ -364,7 +370,7 @@ describe('core/utils/cli', () => {
           describe: 'Test option',
         });
 
-        const args1 = ArgumentsParser.parse(builder1, Arguments.create({}, ['--test-option=test']));
+        const args1 = await ArgumentsParser.parse(builder1, Arguments.create({}, ['--test-option=test']));
 
         expect(yargsMock.apiMocks.command).toHaveBeenCalledWith(
           '$0 [@__FIRST_ARGUMENT__@]',
@@ -386,7 +392,7 @@ describe('core/utils/cli', () => {
           describe: 'Test option',
         });
 
-        const args2 = ArgumentsParser.parse(
+        const args2 = await ArgumentsParser.parse(
           builder2,
           Arguments.create({}, ['--test-option=test', 'arg1', 'arg2', 'arg3']),
         );
@@ -401,8 +407,8 @@ describe('core/utils/cli', () => {
         expect(args2.get('test-option')).toEqual('test');
       });
 
-      it("should allow the 'baseArgs' argument to be optional", () => {
-        const args = ArgumentsParser.parse(CommandBuilder.create());
+      it("should allow the 'baseArgs' argument to be optional", async () => {
+        const args = await ArgumentsParser.parse(CommandBuilder.create());
 
         expect(args).toBeInstanceOf(Arguments);
       });

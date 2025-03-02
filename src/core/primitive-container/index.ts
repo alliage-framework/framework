@@ -3,10 +3,10 @@ export class FrozenContainerError extends Error {}
 export class PrimitiveContainer {
   private isFrozen: boolean;
 
-  private container: Map<string, any>;
+  private container: Map<string, unknown>;
 
-  public constructor(data: Record<string, any>) {
-    this.container = new Map<string, any>(Object.entries(data));
+  public constructor(data: Record<string, unknown>) {
+    this.container = new Map<string, unknown>(Object.entries(data));
     this.isFrozen = false;
   }
 
@@ -15,7 +15,7 @@ export class PrimitiveContainer {
   }
 
   public get<T>(name: string): T {
-    return this.container.get(name);
+    return this.container.get(name) as T;
   }
 
   private throwIfFrozen() {
@@ -24,7 +24,7 @@ export class PrimitiveContainer {
     }
   }
 
-  set(name: string, value: any) {
+  set(name: string, value: unknown) {
     this.throwIfFrozen();
     this.container.set(name, value);
     return this;

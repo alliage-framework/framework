@@ -1,7 +1,26 @@
-import { InstallScript } from '../install';
+import { InstallScript } from '..';
 import { Arguments } from '../../core/utils/cli';
+import { Kernel } from '../../core/kernel';
+import path from 'path';
 
-jest.mock('../../core/script');
+jest.mock('../../core/kernel', () => {
+  function Kernel() {};
+  Kernel.prototype.build = jest.fn();
+  Kernel.prototype.install = jest.fn();
+  Kernel.prototype.run = jest.fn();
+  return { Kernel };
+});
+jest.mock('../../core/utils/cli', () => {
+  return {
+    ...jest.requireActual('../../core/utils/cli'),
+    CommandBuilder: {
+      create: () => commandBuilderCreateMock(),
+    },
+    ArgumentsParser: {
+      parse: (...args: unknown[]) => argumentsParserMock(...args),
+    },
+  };
+});
 
 const commandBuilderMock = {
   setDescription: jest.fn().mockReturnThis(),
@@ -10,18 +29,6 @@ const commandBuilderMock = {
 const commandBuilderCreateMock = jest.fn().mockReturnValue(commandBuilderMock);
 const argumentsParserMock = jest.fn();
 
-jest.mock('../../core/utils/cli', () => {
-  return {
-    ...jest.requireActual('../../core/utils/cli'),
-    CommandBuilder: {
-      create: () => commandBuilderCreateMock(),
-    },
-    ArgumentsParser: {
-      parse: (...args: any[]) => argumentsParserMock(...args),
-    },
-  };
-});
-
 describe('core/script/run', () => {
   afterEach(() => {
     jest.clearAllMocks();
@@ -29,14 +36,16 @@ describe('core/script/run', () => {
 
   describe('InstallScript', () => {
     describe('#execute', () => {
-      it("should call the 'install' method of the kernel", () => {
-        const args = Arguments.create();
-        const buildScript = new InstallScript({ initial_value: 'test' }) as any;
-        buildScript.execute(args, 'test');
+      it("should call the 'install' method of the kernel", async () => {
+        jest.doMock(path.resolve('./alliage-modules.json'), () => ({}), { virtual: true });
 
-        expect(buildScript.kernel.build).not.toHaveBeenCalled();
-        expect(buildScript.kernel.install).toHaveBeenCalledWith(args, 'test');
-        expect(buildScript.kernel.run).not.toHaveBeenCalled();
+        const args = Arguments.create();
+        const buildScript = new InstallScript({ initial_value: 'test' });
+        await buildScript.execute(args, 'test');
+
+        expect(Kernel.prototype.build).not.toHaveBeenCalled();
+        expect(Kernel.prototype.install).toHaveBeenCalledWith(args, 'test');
+        expect(Kernel.prototype.run).not.toHaveBeenCalled();
       });
     });
   });

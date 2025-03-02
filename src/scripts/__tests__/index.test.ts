@@ -1,23 +1,23 @@
 import { Arguments } from '../../core/utils/cli';
-import { execute } from '..';
+import { execute, InstallScript, BuildScript, RunScript } from '..';
 
 const installScriptExecuteMock = jest.fn();
 jest.mock('../install', () => ({
-  InstallScript: function InstallScript(this: any) {
+  InstallScript: function InstallScript(this: InstallScript) {
     this.execute = installScriptExecuteMock;
   },
 }));
 
 const buildScriptExecuteMock = jest.fn();
 jest.mock('../build', () => ({
-  BuildScript: function InstallScript(this: any) {
+  BuildScript: function BuildScript(this: BuildScript) {
     this.execute = buildScriptExecuteMock;
   },
 }));
 
 const runScriptExecuteMock = jest.fn();
 jest.mock('../run', () => ({
-  RunScript: function InstallScript(this: any) {
+  RunScript: function RunScript(this: RunScript) {
     this.execute = runScriptExecuteMock;
   },
 }));
@@ -37,7 +37,7 @@ jest.mock('../../core/utils/cli', () => {
       create: () => commandBuilderCreateMock(),
     },
     ArgumentsParser: {
-      parse: (...args: any[]) => argumentsParserMock(...args),
+      parse: (...args: unknown[]) => argumentsParserMock(...args),
     },
   };
 });

@@ -3,11 +3,17 @@ import path from 'path';
 import { AbstractScript } from '..';
 import { Kernel } from '../../kernel';
 
-jest.mock('../../kernel');
+jest.mock('../../kernel', () => {
+  const KernelMock = jest.fn();
+  KernelMock.prototype.build = jest.fn();
+  KernelMock.prototype.install = jest.fn();
+  KernelMock.prototype.run = jest.fn();
+  return { Kernel: KernelMock };
+});
 
 describe('core/script', () => {
   describe('AbstractScript', () => {
-    jest.doMock(path.resolve('./relative/path/1'), () => ({ default: { name: 'module1' } }), {
+    jest.doMock(path.resolve('./relative/path/1'), () => ({ name: 'module1' }), {
       virtual: true,
     });
     jest.doMock(path.resolve('../relative/path/2'), () => ({ name: 'module2' }), { virtual: true });
@@ -39,17 +45,18 @@ describe('core/script', () => {
       { virtual: true },
     );
 
-    it('should load the kernel when instanciated', () => {
+    it('should load the kernel when instanciated', async () => {
       let kernelMock;
       class ConcreteScript extends AbstractScript {
-        execute() {
+        async execute() {
+          await super.execute();
           kernelMock = this.getKernel();
         }
       }
 
       const script = new ConcreteScript({ initial_value: 'test' });
-      script.execute();
-
+      await script.execute();
+      
       expect(Kernel).toHaveBeenCalledWith(
         {
           module1: [{ name: 'module1' }, ['module2'], ['dev']],
@@ -60,6 +67,17 @@ describe('core/script', () => {
         { initial_value: 'test' },
       );
       expect(kernelMock).toBeInstanceOf(Kernel);
+    });
+
+    it('should throw an error if the kernel is not initialized', async () => {
+      class ConcreteScript extends AbstractScript {
+        async execute() {
+          this.getKernel();
+        }
+      }
+
+      const script = new ConcreteScript({ initial_value: 'test' });
+      await expect(script.execute()).rejects.toThrow('Script not initialized');
     });
   });
 });

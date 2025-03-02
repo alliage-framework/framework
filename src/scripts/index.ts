@@ -13,7 +13,7 @@ const scripts: { [name: string]: ScriptConstructor } = {
 };
 
 export async function execute() {
-  const args = ArgumentsParser.parse(
+  const args = await ArgumentsParser.parse(
     CommandBuilder.create()
       .setDescription('Runs a script')
       .addArgument('script', {

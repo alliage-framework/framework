@@ -6,7 +6,7 @@ export interface YargsMock extends jest.Mock {
     help: jest.Mock;
     positional: jest.Mock;
     option: jest.Mock;
-    argv: any;
+    parseAsync: jest.Mock;
   };
-  setExpectedArgs: (args: any) => void;
+  setExpectedArgs: (args: Record<string, unknown>) => void;
 }
