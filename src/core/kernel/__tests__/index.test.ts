@@ -1,3 +1,4 @@
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import {
   Arguments,
   INITIALIZATION_CONTEXT,
@@ -10,30 +11,30 @@ import { PrimitiveContainer } from '../../primitive-container';
 
 import { Kernel, ModuleMap } from '..';
 
-jest.mock('../../primitive-container');
+vi.mock('../../primitive-container');
 
 describe('core/kernel', () => {
   describe('Kernel', () => {
     afterEach(() => {
-      jest.clearAllMocks();
+      vi.clearAllMocks();
     });
 
     const firstModuleEvents = {
-      init: jest.fn(),
-      install: jest.fn(),
-      build: jest.fn(),
+      init: vi.fn(),
+      install: vi.fn(),
+      build: vi.fn(),
     };
 
     const secondModuleEvents = {
-      init: jest.fn(),
-      install: jest.fn(),
-      run: jest.fn(),
+      init: vi.fn(),
+      install: vi.fn(),
+      run: vi.fn(),
     };
 
     const thirdModuleEvents = {
-      init: jest.fn(),
-      build: jest.fn(),
-      run: jest.fn(),
+      init: vi.fn(),
+      build: vi.fn(),
+      run: vi.fn(),
     };
 
     const modules: ModuleMap = {

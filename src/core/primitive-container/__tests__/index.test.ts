@@ -1,3 +1,4 @@
+import { describe, it, expect } from 'vitest';
 import { PrimitiveContainer, FrozenContainerError } from '../../..';
 
 describe('core/primitive-container', () => {
@@ -44,4 +45,4 @@ describe('core/primitive-container', () => {
       expect(() => pc.clear()).toThrowError(FrozenContainerError);
     });
   });
-});
+}); 

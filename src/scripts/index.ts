@@ -5,6 +5,7 @@ import { RunScript } from './run';
 import { ScriptConstructor } from '../core/script/index';
 import { InstallScript } from './install';
 import { ArgumentsParser, CommandBuilder, Arguments } from '../core/utils/cli';
+import url from 'url';
 
 const scripts: { [name: string]: ScriptConstructor } = {
   install: InstallScript,
@@ -40,7 +41,7 @@ export { BuildScript } from './build';
 export { RunScript } from './run';
 export { InstallScript } from './install';
 
-/* istanbul ignore if */
-if (!module.parent) {
+/* v8 ignore next 3 */
+if (import.meta.url === url.pathToFileURL(process.argv[1]).href) {
   execute();
 }

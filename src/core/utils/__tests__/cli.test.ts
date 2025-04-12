@@ -1,19 +1,18 @@
-import yargs from 'yargs';
+import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 
 import { CommandBuilder, Arguments, ArgumentsParser } from '../cli';
-import { YargsMock } from '../../../__tests__/__mocks__/yargs/types';
 
 describe('core/utils/cli', () => {
   let PREV_ENV: NodeJS.ProcessEnv;
   beforeEach(() => {
-    jest.resetModules();
+    vi.resetModules();
     PREV_ENV = process.env;
     process.env = {};
   });
 
   afterEach(() => {
     process.env = PREV_ENV;
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   describe('CommandBuilder', () => {
@@ -282,16 +281,6 @@ describe('core/utils/cli', () => {
         });
 
       it('should parse arguments according to the provided CommandBuilder', async () => {
-        const yargsMock = (yargs as unknown) as YargsMock;
-        yargsMock.setExpectedArgs({
-          'test-argument1': 3,
-          'test-argument2': 'test',
-          'test-option1': 'hello',
-          'test-option2': false,
-          'test-option3': true,
-          _: ['unwanted-arg'],
-        });
-
         const args = await ArgumentsParser.parse(
           commandBuilder,
           Arguments.create(
@@ -302,46 +291,6 @@ describe('core/utils/cli', () => {
           ),
         );
 
-        expect(yargsMock).toHaveBeenNthCalledWith(1, [
-          '3',
-          'test',
-          '--test-option1="hello"',
-          '--test-option2=0',
-          'unwanted-arg',
-        ]);
-        expect(yargsMock.apiMocks.parserConfiguration).toHaveBeenCalledWith({
-          'unknown-options-as-args': true,
-        });
-        expect(yargsMock.apiMocks.scriptName).toHaveBeenCalledWith('test-command');
-
-        expect(yargsMock.apiMocks.command).toHaveBeenCalledWith(
-          '$0 <test-argument1> [test-argument2]',
-          'Test description',
-          expect.any(Function),
-        );
-        expect(yargsMock).toHaveBeenNthCalledWith(2, '__MOCK_COMMAND_CALLBACK__');
-        expect(yargsMock.apiMocks.positional).toHaveBeenNthCalledWith(1, 'test-argument1', {
-          describe: 'Test argument 1',
-          type: 'number',
-          choices: [1, 2, 3],
-        });
-        expect(yargsMock.apiMocks.positional).toHaveBeenNthCalledWith(2, 'test-argument2', {
-          describe: 'Test argument 2',
-          type: 'string',
-          default: 'default argument 2',
-        });
-        expect(yargsMock.apiMocks.option).toHaveBeenCalledWith('test-option1', {
-          describe: 'Test option 1',
-          type: 'string',
-          default: 'default option 1',
-        });
-        expect(yargsMock.apiMocks.option).toHaveBeenCalledWith('test-option2', {
-          describe: 'Test option 2',
-          type: 'boolean',
-          default: true,
-        });
-
-        expect(yargsMock.apiMocks.help).toHaveBeenCalled();
         expect(args.get('test-argument1')).toEqual(3);
         expect(args.get('test-argument2')).toEqual('test');
         expect(args.get('test-option1')).toEqual('hello');
@@ -358,36 +307,17 @@ describe('core/utils/cli', () => {
       });
 
       it('should allow to have no expected arguments', async () => {
-        const yargsMock = (yargs as unknown) as YargsMock;
         // case1: without remaining args
-        yargsMock.setExpectedArgs({
-          '@__FIRST_ARGUMENT__@': '@__EMTPY_VALUE__@',
-          'test-option': 'test',
-          _: [],
-        });
-
         const builder1 = CommandBuilder.create().addOption('test-option', {
           describe: 'Test option',
         });
 
         const args1 = await ArgumentsParser.parse(builder1, Arguments.create({}, ['--test-option=test']));
 
-        expect(yargsMock.apiMocks.command).toHaveBeenCalledWith(
-          '$0 [@__FIRST_ARGUMENT__@]',
-          '',
-          expect.any(Function),
-        );
-
         expect(args1.getRemainingArgs()).toEqual([]);
         expect(args1.get('test-option')).toEqual('test');
 
         // case2: with remaining args
-        yargsMock.setExpectedArgs({
-          '@__FIRST_ARGUMENT__@': 'arg1',
-          'test-option': 'test',
-          _: ['arg2', 'arg3'],
-        });
-
         const builder2 = CommandBuilder.create().addOption('test-option', {
           describe: 'Test option',
         });
@@ -395,12 +325,6 @@ describe('core/utils/cli', () => {
         const args2 = await ArgumentsParser.parse(
           builder2,
           Arguments.create({}, ['--test-option=test', 'arg1', 'arg2', 'arg3']),
-        );
-
-        expect(yargsMock.apiMocks.command).toHaveBeenCalledWith(
-          '$0 [@__FIRST_ARGUMENT__@]',
-          '',
-          expect.any(Function),
         );
 
         expect(args2.getRemainingArgs()).toEqual(['arg1', 'arg2', 'arg3']);
@@ -414,4 +338,4 @@ describe('core/utils/cli', () => {
       });
     });
   });
-});
+}); 

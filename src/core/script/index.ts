@@ -24,7 +24,11 @@ export abstract class AbstractScript {
 
   private async loadKernel(primitiveContainerData: Record<string, unknown>) {
     const modulesDefinition: ModulesDefinition = (
-      await import(path.resolve('./alliage-modules.json'))
+      await import(path.resolve('./alliage-modules.json'), {
+        assert: {
+          type: 'json',
+        },
+      })
     ).default;
 
     const loadedModules = await Promise.all(

@@ -32,5 +32,5 @@
     /* Advanced Options */
     "resolveJsonModule": true
   },
-  "exclude": ["**/__tests__/**", "**/__mocks__/**"],
+  "exclude": ["**/__tests__/**", "**/__mocks__/**", "vitest.config.ts"]
 }

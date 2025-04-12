@@ -7,9 +7,6 @@ const CLI_PATTERNS: [RegExp, string][] = [
   [/deno$/, 'deno'],
 ];
 
-const EMPTY_VALUE = '@__EMTPY_VALUE__@';
-const FIRST_ARGUMENT = '@__FIRST_ARGUMENT__@';
-
 type ParsedArgs = { [key: string]: string | number | boolean };
 
 export class Arguments {
@@ -156,23 +153,15 @@ export class ArgumentsParser {
       return this.arguments;
     }
 
-    const argumentList = hasArgs
-      ? builderArgs
-      : [
-          {
-            name: FIRST_ARGUMENT,
-            describe: 'no arguments required',
-            default: EMPTY_VALUE,
-          },
-        ];
-
-    const { _, $0, ...parsedArgs } = await yargs(this.arguments.getRemainingArgs())
+    const yargsInstance = yargs(this.arguments.getRemainingArgs())
       .parserConfiguration({
         'unknown-options-as-args': true,
       })
-      .scriptName(this.arguments.getCommand())
-      .command(
-        `$0 ${argumentList
+      .scriptName(this.arguments.getCommand());
+
+    if (hasArgs) {
+      yargsInstance.command(
+        `$0 ${builderArgs
           .map((args) => (args.default ? `[${args.name}]` : `<${args.name}>`))
           .join(' ')}`,
         this.builder.getDescription(),
@@ -190,28 +179,27 @@ export class ArgumentsParser {
             }),
           );
         },
-      )
-      .help()
-      .parseAsync();
+      );
+    } else {
+      builderOptions.forEach(([name, desc]) =>
+        yargsInstance.option(name, {
+          ...desc,
+          choices: this._convertChoices(desc.choices),
+        }),
+      );
+    }
 
-    const { [FIRST_ARGUMENT]: _firstArg, ...args } = parsedArgs;
+    const { _, $0: _scriptName, ...parsedArgs } = await yargsInstance.help().parseAsync();
+
     return this.arguments.createChild(
-      args as ParsedArgs,
-      this._computeRemainingArgs(hasArgs, parsedArgs, _.map((a) => a.toString())),
+      parsedArgs as ParsedArgs,
+      _.map((a) => a.toString()),
       builderArgs.map(({ name }) => parsedArgs[name]).join(' '),
     );
   }
 
-  private _computeRemainingArgs(hasArgs: boolean, parsedArgs: Record<string, unknown>, remainingArgs: string[]) {
-    if (hasArgs || parsedArgs[FIRST_ARGUMENT] === EMPTY_VALUE) {
-      return remainingArgs;
-    }
-
-    return [parsedArgs[FIRST_ARGUMENT] as string, ...remainingArgs.map((a) => a.toString())];
-  }
-
   private _convertChoices(choices: ArgumentDescrition['choices']) {
-    return choices?.map((c) => (typeof c === 'boolean' ? ((c as true) || undefined) : c));
+    return choices?.map((c) => (typeof c === 'boolean' ? (c as true) || undefined : c));
   }
 
   static parse(builder: CommandBuilder, baseArgs?: Arguments) {
