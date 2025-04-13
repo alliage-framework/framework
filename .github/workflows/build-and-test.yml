@@ -6,6 +6,9 @@ on:
         required: false
         type: boolean
         default: false
+    secrets:
+      CODECOV_TOKEN:
+        required: true
 jobs:
   build_and_test:
     runs-on: ubuntu-latest
@@ -24,10 +27,12 @@ jobs:
         run: yarn test
       - name: Upload coverage
         if: inputs.skipTests == false
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v5
         with:
           fail_ci_if_error: true
           verbose: true
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
       - name: Create build archive
         run: |
           mkdir artifacts

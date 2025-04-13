@@ -1,5 +1,5 @@
-import { AbstractScript } from '../core/script';
-import { Arguments } from '../core/utils/cli';
+import { AbstractScript } from '../core/script/index.js';
+import { Arguments } from '../core/utils/cli.js';
 
 export class InstallScript extends AbstractScript {
   public async execute(args: Arguments, env: string) {

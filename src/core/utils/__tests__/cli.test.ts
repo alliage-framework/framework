@@ -1,6 +1,6 @@
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 
-import { CommandBuilder, Arguments, ArgumentsParser } from '../cli';
+import { CommandBuilder, Arguments, ArgumentsParser, ArgumentParserValidationError } from '../cli';
 
 describe('core/utils/cli', () => {
   let PREV_ENV: NodeJS.ProcessEnv;
@@ -33,7 +33,7 @@ describe('core/utils/cli', () => {
             describe: 'Test option 3',
             type: 'number',
             choices: [1, 2, 3],
-          })
+          });
 
         expect(cb.getOptions()).toEqual({
           'test-option1': {
@@ -312,7 +312,10 @@ describe('core/utils/cli', () => {
           describe: 'Test option',
         });
 
-        const args1 = await ArgumentsParser.parse(builder1, Arguments.create({}, ['--test-option=test']));
+        const args1 = await ArgumentsParser.parse(
+          builder1,
+          Arguments.create({}, ['--test-option=test']),
+        );
 
         expect(args1.getRemainingArgs()).toEqual([]);
         expect(args1.get('test-option')).toEqual('test');
@@ -336,6 +339,54 @@ describe('core/utils/cli', () => {
 
         expect(args).toBeInstanceOf(Arguments);
       });
+
+      it('should throw an error when validation fails with exitOnFailure=true', async () => {
+        // Create a builder with a required number argument with specific choices
+        const strictBuilder = CommandBuilder.create().addArgument('required-arg', {
+          describe: 'Required argument',
+          type: 'number',
+          choices: [1, 2, 3],
+        });
+
+        // Mock process.exit to prevent test from exiting
+        const mockExit = vi.spyOn(process, 'exit').mockImplementation(() => undefined as never);
+        // Mock console.error to prevent output during test
+        const mockConsoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+        // Pass an invalid value that will trigger validation failure
+        await ArgumentsParser.parse(strictBuilder, Arguments.create({}, ['4'], 'test-command'), {
+          exitOnFailure: true,
+        }).catch(() => {});
+
+        expect(mockExit).toHaveBeenCalledWith(1);
+        expect(mockConsoleError).toHaveBeenCalled();
+
+        mockExit.mockRestore();
+        mockConsoleError.mockRestore();
+      });
+
+      it('should throw ArgumentParserValidationError when validation fails with exitOnFailure=false', async () => {
+        // Create a builder with a required number argument with specific choices
+        const strictBuilder = CommandBuilder.create().addArgument('required-arg', {
+          describe: 'Required argument',
+          type: 'number',
+          choices: [1, 2, 3],
+        });
+
+        // Test that the error contains help text
+        try {
+          await ArgumentsParser.parse(
+            strictBuilder,
+            Arguments.create({}, ['4'], 'test-command'),
+            { exitOnFailure: false }
+          );
+        } catch (error) {
+          expect(error).toBeInstanceOf(ArgumentParserValidationError);
+          expect(error.help).toBeDefined();
+          expect(typeof error.help).toBe('string');
+          expect(error.help).toContain('Required argument');
+        }
+      });
     });
   });
-}); 
+});

@@ -1,4 +1,4 @@
-import yargs from 'yargs';
+import yargs, { Argv } from 'yargs';
 const CLI_PATTERNS: [RegExp, string][] = [
   [/npm-cli\.js$/, 'npm'],
   [/yarn\.js$/, 'yarn'],
@@ -133,6 +133,16 @@ export class CommandBuilder {
   }
 }
 
+export class ArgumentParserValidationError extends Error {
+  constructor(public help: string) {
+    super('Invalid arguments');
+  }
+}
+
+export type ArgumentParserParseOptions = {
+  exitOnFailure: boolean;
+};
+
 export class ArgumentsParser {
   protected builder: CommandBuilder;
 
@@ -143,7 +153,7 @@ export class ArgumentsParser {
     this.arguments = baseArgs;
   }
 
-  protected async parse() {
+  protected async parse({ exitOnFailure }: ArgumentParserParseOptions) {
     const builderArgs = this.builder.getArguments();
     const builderOptions = Object.entries(this.builder.getOptions());
     const hasArgs = builderArgs.length > 0;
@@ -165,7 +175,7 @@ export class ArgumentsParser {
           .map((args) => (args.default ? `[${args.name}]` : `<${args.name}>`))
           .join(' ')}`,
         this.builder.getDescription(),
-        (subYargs: yargs.Argv) => {
+        (subYargs: Argv) => {
           builderArgs.forEach(({ name, ...desc }) =>
             subYargs.positional(name, {
               ...desc,
@@ -189,20 +199,47 @@ export class ArgumentsParser {
       );
     }
 
-    const { _, $0: _scriptName, ...parsedArgs } = await yargsInstance.help().parseAsync();
+    try {
+      const {
+        _,
+        $0: _scriptName,
+        ...parsedArgs
+      } = await yargsInstance
+        .help()
+        .showHelpOnFail(false)
+        .fail((_msg, err) => {
+          throw err ?? new Error('yargs_validation_error');
+        })
+        .parseAsync();
 
-    return this.arguments.createChild(
-      parsedArgs as ParsedArgs,
-      _.map((a) => a.toString()),
-      builderArgs.map(({ name }) => parsedArgs[name]).join(' '),
-    );
+      return this.arguments.createChild(
+        parsedArgs as ParsedArgs,
+        _.map((a) => a.toString()),
+        builderArgs.map(({ name }) => parsedArgs[name]).join(' '),
+      );
+    } catch (err) {
+      const help = await new Promise<string>((resolve) => yargsInstance.showHelp(resolve));
+      if (exitOnFailure) {
+        console.error(help);
+        process.exit(1);
+      }
+      if (err instanceof Error && err.message === 'yargs_validation_error') {
+        throw new ArgumentParserValidationError(help);
+        /* v8 ignore next 3 lines */
+      }
+      throw err;
+    }
   }
 
   private _convertChoices(choices: ArgumentDescrition['choices']) {
     return choices?.map((c) => (typeof c === 'boolean' ? (c as true) || undefined : c));
   }
 
-  static parse(builder: CommandBuilder, baseArgs?: Arguments) {
-    return new ArgumentsParser(builder, baseArgs).parse();
+  static parse(
+    builder: CommandBuilder,
+    baseArgs?: Arguments,
+    { exitOnFailure = true }: Partial<ArgumentParserParseOptions> = {},
+  ) {
+    return new ArgumentsParser(builder, baseArgs).parse({ exitOnFailure });
   }
 }

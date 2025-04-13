@@ -1,6 +1,6 @@
-import { ModuleConstructor } from '../module';
-import { PrimitiveContainer } from '../primitive-container';
-import { Arguments } from '../utils/cli';
+import { ModuleConstructor } from '../module/index.js';
+import { PrimitiveContainer } from '../primitive-container/index.js';
+import { Arguments } from '../utils/cli.js';
 
 export enum INITIALIZATION_CONTEXT {
   INSTALL = 'INSTALL',
