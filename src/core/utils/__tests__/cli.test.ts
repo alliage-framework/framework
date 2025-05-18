@@ -1,19 +1,18 @@
-import yargs from 'yargs';
+import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 
-import { CommandBuilder, Arguments, ArgumentsParser } from '../cli';
-import { YargsMock } from '../../../__tests__/__mocks__/yargs/types';
+import { CommandBuilder, Arguments, ArgumentsParser, ArgumentParserValidationError } from '../cli';
 
 describe('core/utils/cli', () => {
-  let PREV_ENV: any;
+  let PREV_ENV: NodeJS.ProcessEnv;
   beforeEach(() => {
-    jest.resetModules();
+    vi.resetModules();
     PREV_ENV = process.env;
     process.env = {};
   });
 
   afterEach(() => {
     process.env = PREV_ENV;
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   describe('CommandBuilder', () => {
@@ -116,7 +115,7 @@ describe('core/utils/cli', () => {
 
   describe('Arguments', () => {
     describe('#get', () => {
-      it("should return of the values of the 'parsedArgs‘", () => {
+      it("should return of the values of the 'parsedArgs'", () => {
         const agts = Arguments.create({ foo: 'bar', test: 42, isBoolean: true });
 
         expect(agts.get('foo')).toEqual('bar');
@@ -265,6 +264,11 @@ describe('core/utils/cli', () => {
           type: 'boolean',
           default: true,
         })
+        .addOption('test-option3', {
+          describe: 'Test option 3',
+          type: 'boolean',
+          choices: [true, false],
+        })
         .addArgument('test-argument1', {
           describe: 'Test argument 1',
           type: 'number',
@@ -276,17 +280,8 @@ describe('core/utils/cli', () => {
           default: 'default argument 2',
         });
 
-      it('should parse arguments according to the provided CommandBuilder', () => {
-        const yargsMock = (yargs as unknown) as YargsMock;
-        yargsMock.setExpectedArgs({
-          'test-argument1': 3,
-          'test-argument2': 'test',
-          'test-option1': 'hello',
-          'test-option2': false,
-          _: ['unwanted-arg'],
-        });
-
-        const args = ArgumentsParser.parse(
+      it('should parse arguments according to the provided CommandBuilder', async () => {
+        const args = await ArgumentsParser.parse(
           commandBuilder,
           Arguments.create(
             {},
@@ -296,46 +291,6 @@ describe('core/utils/cli', () => {
           ),
         );
 
-        expect(yargsMock).toHaveBeenNthCalledWith(1, [
-          '3',
-          'test',
-          '--test-option1="hello"',
-          '--test-option2=0',
-          'unwanted-arg',
-        ]);
-        expect(yargsMock.apiMocks.parserConfiguration).toHaveBeenCalledWith({
-          'unknown-options-as-args': true,
-        });
-        expect(yargsMock.apiMocks.scriptName).toHaveBeenCalledWith('test-command');
-
-        expect(yargsMock.apiMocks.command).toHaveBeenCalledWith(
-          '$0 <test-argument1> [test-argument2]',
-          'Test description',
-          expect.any(Function),
-        );
-        expect(yargsMock).toHaveBeenNthCalledWith(2, '__MOCK_COMMAND_CALLBACK__');
-        expect(yargsMock.apiMocks.positional).toHaveBeenNthCalledWith(1, 'test-argument1', {
-          describe: 'Test argument 1',
-          type: 'number',
-          choices: [1, 2, 3],
-        });
-        expect(yargsMock.apiMocks.positional).toHaveBeenNthCalledWith(2, 'test-argument2', {
-          describe: 'Test argument 2',
-          type: 'string',
-          default: 'default argument 2',
-        });
-        expect(yargsMock.apiMocks.option).toHaveBeenCalledWith('test-option1', {
-          describe: 'Test option 1',
-          type: 'string',
-          default: 'default option 1',
-        });
-        expect(yargsMock.apiMocks.option).toHaveBeenCalledWith('test-option2', {
-          describe: 'Test option 2',
-          type: 'boolean',
-          default: true,
-        });
-
-        expect(yargsMock.apiMocks.help).toHaveBeenCalled();
         expect(args.get('test-argument1')).toEqual(3);
         expect(args.get('test-argument2')).toEqual('test');
         expect(args.get('test-option1')).toEqual('hello');
@@ -344,67 +299,93 @@ describe('core/utils/cli', () => {
         expect(args.getCommand()).toEqual('test-command 3 test');
       });
 
-      it("should return the same 'baseArgs' if nothing is configured in the command builder", () => {
+      it("should return the same 'baseArgs' if nothing is configured in the command builder", async () => {
         const baseArgs = Arguments.create();
-        const args = ArgumentsParser.parse(CommandBuilder.create(), baseArgs);
+        const args = await ArgumentsParser.parse(CommandBuilder.create(), baseArgs);
 
         expect(args).toBe(baseArgs);
       });
 
-      it('should allow to have no expected arguments', () => {
-        const yargsMock = (yargs as unknown) as YargsMock;
+      it('should allow to have no expected arguments', async () => {
         // case1: without remaining args
-        yargsMock.setExpectedArgs({
-          '@__FIRST_ARGUMENT__@': '@__EMTPY_VALUE__@',
-          'test-option': 'test',
-          _: [],
-        });
-
         const builder1 = CommandBuilder.create().addOption('test-option', {
           describe: 'Test option',
         });
 
-        const args1 = ArgumentsParser.parse(builder1, Arguments.create({}, ['--test-option=test']));
-
-        expect(yargsMock.apiMocks.command).toHaveBeenCalledWith(
-          '$0 [@__FIRST_ARGUMENT__@]',
-          '',
-          expect.any(Function),
+        const args1 = await ArgumentsParser.parse(
+          builder1,
+          Arguments.create({}, ['--test-option=test']),
         );
 
         expect(args1.getRemainingArgs()).toEqual([]);
         expect(args1.get('test-option')).toEqual('test');
 
         // case2: with remaining args
-        yargsMock.setExpectedArgs({
-          '@__FIRST_ARGUMENT__@': 'arg1',
-          'test-option': 'test',
-          _: ['arg2', 'arg3'],
-        });
-
         const builder2 = CommandBuilder.create().addOption('test-option', {
           describe: 'Test option',
         });
 
-        const args2 = ArgumentsParser.parse(
+        const args2 = await ArgumentsParser.parse(
           builder2,
           Arguments.create({}, ['--test-option=test', 'arg1', 'arg2', 'arg3']),
-        );
-
-        expect(yargsMock.apiMocks.command).toHaveBeenCalledWith(
-          '$0 [@__FIRST_ARGUMENT__@]',
-          '',
-          expect.any(Function),
         );
 
         expect(args2.getRemainingArgs()).toEqual(['arg1', 'arg2', 'arg3']);
         expect(args2.get('test-option')).toEqual('test');
       });
 
-      it("should allow the 'baseArgs' argument to be optional", () => {
-        const args = ArgumentsParser.parse(CommandBuilder.create());
+      it("should allow the 'baseArgs' argument to be optional", async () => {
+        const args = await ArgumentsParser.parse(CommandBuilder.create());
 
         expect(args).toBeInstanceOf(Arguments);
+      });
+
+      it('should throw an error when validation fails with exitOnFailure=true', async () => {
+        // Create a builder with a required number argument with specific choices
+        const strictBuilder = CommandBuilder.create().addArgument('required-arg', {
+          describe: 'Required argument',
+          type: 'number',
+          choices: [1, 2, 3],
+        });
+
+        // Mock process.exit to prevent test from exiting
+        const mockExit = vi.spyOn(process, 'exit').mockImplementation(() => undefined as never);
+        // Mock console.error to prevent output during test
+        const mockConsoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+        // Pass an invalid value that will trigger validation failure
+        await ArgumentsParser.parse(strictBuilder, Arguments.create({}, ['4'], 'test-command'), {
+          exitOnFailure: true,
+        }).catch(() => {});
+
+        expect(mockExit).toHaveBeenCalledWith(1);
+        expect(mockConsoleError).toHaveBeenCalled();
+
+        mockExit.mockRestore();
+        mockConsoleError.mockRestore();
+      });
+
+      it('should throw ArgumentParserValidationError when validation fails with exitOnFailure=false', async () => {
+        // Create a builder with a required number argument with specific choices
+        const strictBuilder = CommandBuilder.create().addArgument('required-arg', {
+          describe: 'Required argument',
+          type: 'number',
+          choices: [1, 2, 3],
+        });
+
+        // Test that the error contains help text
+        try {
+          await ArgumentsParser.parse(
+            strictBuilder,
+            Arguments.create({}, ['4'], 'test-command'),
+            { exitOnFailure: false }
+          );
+        } catch (error) {
+          expect(error).toBeInstanceOf(ArgumentParserValidationError);
+          expect(error.help).toBeDefined();
+          expect(typeof error.help).toBe('string');
+          expect(error.help).toContain('Required argument');
+        }
       });
     });
   });

@@ -1,8 +1,8 @@
 {
   "compilerOptions": {
     /* Basic Options */
-    "target": "es2018",
-    "module": "commonjs",
+    "target": "esnext",
+    "module": "NodeNext",
     "lib": ["es2018"],
     "sourceMap": true,
     "declaration": true,
@@ -26,11 +26,12 @@
     "noFallthroughCasesInSwitch": true,
 
     /* Module Resolution Options */
-    "moduleResolution": "node",
+    "moduleResolution": "nodenext",
     "esModuleInterop": true,
 
     /* Advanced Options */
-    "resolveJsonModule": true
+    "resolveJsonModule": true,
+    "allowSyntheticDefaultImports": true
   },
-  "exclude": ["**/__tests__/**", "**/__mocks__/**"],
+  "exclude": ["**/__tests__/**", "**/__mocks__/**", "vitest.config.ts"]
 }

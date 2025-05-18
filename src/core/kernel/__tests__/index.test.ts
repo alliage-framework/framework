@@ -1,3 +1,4 @@
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import {
   Arguments,
   INITIALIZATION_CONTEXT,
@@ -10,30 +11,30 @@ import { PrimitiveContainer } from '../../primitive-container';
 
 import { Kernel, ModuleMap } from '..';
 
-jest.mock('../../primitive-container');
+vi.mock('../../primitive-container');
 
 describe('core/kernel', () => {
   describe('Kernel', () => {
     afterEach(() => {
-      jest.clearAllMocks();
+      vi.clearAllMocks();
     });
 
     const firstModuleEvents = {
-      init: jest.fn(),
-      install: jest.fn(),
-      build: jest.fn(),
+      init: vi.fn(),
+      install: vi.fn(),
+      build: vi.fn(),
     };
 
     const secondModuleEvents = {
-      init: jest.fn(),
-      install: jest.fn(),
-      run: jest.fn(),
+      init: vi.fn(),
+      install: vi.fn(),
+      run: vi.fn(),
     };
 
     const thirdModuleEvents = {
-      init: jest.fn(),
-      build: jest.fn(),
-      run: jest.fn(),
+      init: vi.fn(),
+      build: vi.fn(),
+      run: vi.fn(),
     };
 
     const modules: ModuleMap = {
@@ -68,7 +69,7 @@ describe('core/kernel', () => {
 
     describe('general', () => {
       it('should initialize the primitive container with the initial parameters', () => {
-        // eslint-disable-next-line no-new
+         
         new Kernel(modules, { initial_value: 'test' });
         expect(PrimitiveContainer).toHaveBeenCalledWith({ initial_value: 'test' });
       });
@@ -121,14 +122,12 @@ describe('core/kernel', () => {
         expect(firstModuleEvents.install).toHaveBeenCalledWith(
           args,
           'test',
-          expect.any(PrimitiveContainer),
-          undefined,
+          expect.any(PrimitiveContainer)
         );
         expect(secondModuleEvents.install).toHaveBeenCalledWith(
           args,
           'test',
-          expect.any(PrimitiveContainer),
-          undefined,
+          expect.any(PrimitiveContainer)
         );
 
         // Checks that install events handlers have been called in the right order
@@ -185,14 +184,12 @@ describe('core/kernel', () => {
         expect(firstModuleEvents.build).toHaveBeenCalledWith(
           args,
           'test',
-          expect.any(PrimitiveContainer),
-          undefined,
+          expect.any(PrimitiveContainer)
         );
         expect(thirdModuleEvents.build).toHaveBeenCalledWith(
           args,
           'test',
-          expect.any(PrimitiveContainer),
-          undefined,
+          expect.any(PrimitiveContainer)
         );
 
         // Checks that build events handlers have been called in the right order
@@ -249,14 +246,12 @@ describe('core/kernel', () => {
         expect(secondModuleEvents.run).toHaveBeenCalledWith(
           args,
           'test',
-          expect.any(PrimitiveContainer),
-          undefined,
+          expect.any(PrimitiveContainer)
         );
         expect(thirdModuleEvents.run).toHaveBeenCalledWith(
           args,
           'test',
-          expect.any(PrimitiveContainer),
-          undefined,
+          expect.any(PrimitiveContainer)
         );
 
         // Checks that run events handlers have been called in the right order
@@ -319,7 +314,7 @@ describe('core/kernel', () => {
       const kernel = new Kernel(modulesWithCircularReference, { initial_value: 'test' });
       const args = Arguments.create();
 
-      let error: Error | null = null;
+      let error: unknown = null;
       try {
         await kernel.install(args, 'test');
       } catch (e) {
@@ -360,7 +355,7 @@ describe('core/kernel', () => {
       const kernel = new Kernel(modulesWithMissingDep, { initial_value: 'test' });
       const args = Arguments.create();
 
-      let error;
+      let error: unknown = null;
       try {
         await kernel.run(args, 'test');
       } catch (e) {
@@ -368,7 +363,7 @@ describe('core/kernel', () => {
       }
 
       expect(error).toBeInstanceOf(UnknownModuleError);
-      expect(error.message).toEqual(
+      expect((error as Error).message).toEqual(
         'Unknown module "unknown-module".\nThis usually happens when a module relies on a dependency that has not been registered yet.\nPlease check your "alliage-modules.json" file',
       );
     });

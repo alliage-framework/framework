@@ -1,10 +1,13 @@
 #!/usr/bin/env node
 
-import { BuildScript } from './build';
-import { RunScript } from './run';
-import { ScriptConstructor } from '../core/script/index';
-import { InstallScript } from './install';
-import { ArgumentsParser, CommandBuilder, Arguments } from '../core/utils/cli';
+import * as url from 'url';
+import * as fs from 'fs';
+
+import { BuildScript } from './build.js';
+import { RunScript } from './run.js';
+import { ScriptConstructor } from '../core/script/index.js';
+import { InstallScript } from './install.js';
+import { ArgumentsParser, CommandBuilder, Arguments } from '../core/utils/cli.js';
 
 const scripts: { [name: string]: ScriptConstructor } = {
   install: InstallScript,
@@ -13,7 +16,7 @@ const scripts: { [name: string]: ScriptConstructor } = {
 };
 
 export async function execute() {
-  const args = ArgumentsParser.parse(
+  const args = await ArgumentsParser.parse(
     CommandBuilder.create()
       .setDescription('Runs a script')
       .addArgument('script', {
@@ -36,11 +39,11 @@ export async function execute() {
   }
 }
 
-export { BuildScript } from './build';
-export { RunScript } from './run';
-export { InstallScript } from './install';
+export { BuildScript } from './build.js';
+export { RunScript } from './run.js';
+export { InstallScript } from './install.js';
 
-/* istanbul ignore if */
-if (!module.parent) {
+/* v8 ignore next 3 */
+if (import.meta.url === url.pathToFileURL(fs.realpathSync(process.argv[1])).href) {
   execute();
 }

@@ -1,50 +1,58 @@
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import { Arguments } from '../../core/utils/cli';
-import { execute } from '..';
+import { execute, InstallScript, BuildScript, RunScript } from '..';
 
-const installScriptExecuteMock = jest.fn();
-jest.mock('../install', () => ({
-  InstallScript: function InstallScript(this: any) {
-    this.execute = installScriptExecuteMock;
-  },
-}));
+const mocks = vi.hoisted(() => {
+  const commandBuilderMock = {
+    setDescription: vi.fn().mockReturnThis(),
+    addArgument: vi.fn().mockReturnThis(),
+    addOption: vi.fn().mockReturnThis(),
+  };
 
-const buildScriptExecuteMock = jest.fn();
-jest.mock('../build', () => ({
-  BuildScript: function InstallScript(this: any) {
-    this.execute = buildScriptExecuteMock;
-  },
-}));
-
-const runScriptExecuteMock = jest.fn();
-jest.mock('../run', () => ({
-  RunScript: function InstallScript(this: any) {
-    this.execute = runScriptExecuteMock;
-  },
-}));
-
-const commandBuilderMock = {
-  setDescription: jest.fn().mockReturnThis(),
-  addArgument: jest.fn().mockReturnThis(),
-  addOption: jest.fn().mockReturnThis(),
-};
-const commandBuilderCreateMock = jest.fn().mockReturnValue(commandBuilderMock);
-const argumentsParserMock = jest.fn();
-
-jest.mock('../../core/utils/cli', () => {
   return {
-    ...jest.requireActual('../../core/utils/cli'),
+    installScriptExecuteMock: vi.fn(),
+    buildScriptExecuteMock: vi.fn(),
+    runScriptExecuteMock: vi.fn(),
+    argumentsParserMock: vi.fn(),
+    commandBuilderMock,
+    commandBuilderCreateMock: vi.fn().mockReturnValue(commandBuilderMock),
+  }
+});
+
+vi.mock('../install', () => ({
+  InstallScript: function InstallScript(this: InstallScript) {
+    this.execute = mocks.installScriptExecuteMock;
+  },
+}));
+
+vi.mock('../build', () => ({
+  BuildScript: function BuildScript(this: BuildScript) {
+    this.execute = mocks.buildScriptExecuteMock;
+  },
+}));
+
+vi.mock('../run', () => ({
+  RunScript: function RunScript(this: RunScript) {
+    this.execute = mocks.runScriptExecuteMock;
+  },
+}));
+
+vi.mock('../../core/utils/cli', async (importOriginal) => {
+  const actual = await importOriginal() as typeof import('../../core/utils/cli');
+  return {
+    ...actual,
     CommandBuilder: {
-      create: () => commandBuilderCreateMock(),
+      create: () => mocks.commandBuilderCreateMock(),
     },
     ArgumentsParser: {
-      parse: (...args: any[]) => argumentsParserMock(...args),
+      parse: (...args: unknown[]) => mocks.argumentsParserMock(...args),
     },
   };
-});
+});   
 
 describe('core/script', () => {
   afterEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   describe('#execute', () => {
@@ -52,108 +60,108 @@ describe('core/script', () => {
       const args = Arguments.create();
 
       const parsedArguments = Arguments.create({ script: 'install', env: 'test' });
-      argumentsParserMock.mockReturnValue(parsedArguments);
+      mocks.argumentsParserMock.mockReturnValue(parsedArguments);
 
       await execute();
 
-      expect(argumentsParserMock).toHaveBeenCalledWith(commandBuilderMock, args);
+      expect(mocks.argumentsParserMock).toHaveBeenCalledWith(mocks.commandBuilderMock, args);
 
-      expect(commandBuilderMock.setDescription).toHaveBeenCalledWith('Runs a script');
-      expect(commandBuilderMock.addArgument).toHaveBeenCalledWith('script', {
+      expect(mocks.commandBuilderMock.setDescription).toHaveBeenCalledWith('Runs a script');
+      expect(mocks.commandBuilderMock.addArgument).toHaveBeenCalledWith('script', {
         describe: 'The script to run',
         type: 'string',
         choices: ['install', 'build', 'run'],
       });
-      expect(commandBuilderMock.addOption).toHaveBeenCalledWith('env', {
+      expect(mocks.commandBuilderMock.addOption).toHaveBeenCalledWith('env', {
         describe: 'The execution environment',
         type: 'string',
         default: 'production',
       });
 
-      expect(installScriptExecuteMock).toHaveBeenCalledWith(parsedArguments, 'test');
-      expect(buildScriptExecuteMock).not.toHaveBeenCalled();
-      expect(runScriptExecuteMock).not.toHaveBeenCalled();
+      expect(mocks.installScriptExecuteMock).toHaveBeenCalledWith(parsedArguments, 'test');
+      expect(mocks.buildScriptExecuteMock).not.toHaveBeenCalled();
+      expect(mocks.runScriptExecuteMock).not.toHaveBeenCalled();
     });
 
     it("should run the build script if the first argument is 'build'", async () => {
       const args = Arguments.create();
 
       const parsedArguments = Arguments.create({ script: 'build', env: 'test' });
-      argumentsParserMock.mockReturnValue(parsedArguments);
+      mocks.argumentsParserMock.mockReturnValue(parsedArguments);
 
       await execute();
 
-      expect(argumentsParserMock).toHaveBeenCalledWith(commandBuilderMock, args);
+      expect(mocks.argumentsParserMock).toHaveBeenCalledWith(mocks.commandBuilderMock, args);
 
-      expect(commandBuilderMock.setDescription).toHaveBeenCalledWith('Runs a script');
-      expect(commandBuilderMock.addArgument).toHaveBeenCalledWith('script', {
+      expect(mocks.commandBuilderMock.setDescription).toHaveBeenCalledWith('Runs a script');
+      expect(mocks.commandBuilderMock.addArgument).toHaveBeenCalledWith('script', {
         describe: 'The script to run',
         type: 'string',
         choices: ['install', 'build', 'run'],
       });
-      expect(commandBuilderMock.addOption).toHaveBeenCalledWith('env', {
+      expect(mocks.commandBuilderMock.addOption).toHaveBeenCalledWith('env', {
         describe: 'The execution environment',
         type: 'string',
         default: 'production',
       });
 
-      expect(installScriptExecuteMock).not.toHaveBeenCalled();
-      expect(buildScriptExecuteMock).toHaveBeenCalledWith(parsedArguments, 'test');
-      expect(runScriptExecuteMock).not.toHaveBeenCalled();
+      expect(mocks.installScriptExecuteMock).not.toHaveBeenCalled();
+      expect(mocks.buildScriptExecuteMock).toHaveBeenCalledWith(parsedArguments, 'test');
+      expect(mocks.runScriptExecuteMock).not.toHaveBeenCalled();
     });
 
     it("should run the run script if the first argument is 'run'", async () => {
       const args = Arguments.create();
 
       const parsedArguments = Arguments.create({ script: 'run', env: 'test' });
-      argumentsParserMock.mockReturnValue(parsedArguments);
+      mocks.argumentsParserMock.mockReturnValue(parsedArguments);
 
       await execute();
 
-      expect(argumentsParserMock).toHaveBeenCalledWith(commandBuilderMock, args);
+      expect(mocks.argumentsParserMock).toHaveBeenCalledWith(mocks.commandBuilderMock, args);
 
-      expect(commandBuilderMock.setDescription).toHaveBeenCalledWith('Runs a script');
-      expect(commandBuilderMock.addArgument).toHaveBeenCalledWith('script', {
+      expect(mocks.commandBuilderMock.setDescription).toHaveBeenCalledWith('Runs a script');
+      expect(mocks.commandBuilderMock.addArgument).toHaveBeenCalledWith('script', {
         describe: 'The script to run',
         type: 'string',
         choices: ['install', 'build', 'run'],
       });
-      expect(commandBuilderMock.addOption).toHaveBeenCalledWith('env', {
+      expect(mocks.commandBuilderMock.addOption).toHaveBeenCalledWith('env', {
         describe: 'The execution environment',
         type: 'string',
         default: 'production',
       });
 
-      expect(installScriptExecuteMock).not.toHaveBeenCalled();
-      expect(buildScriptExecuteMock).not.toHaveBeenCalled();
-      expect(runScriptExecuteMock).toHaveBeenCalledWith(parsedArguments, 'test');
+      expect(mocks.installScriptExecuteMock).not.toHaveBeenCalled();
+      expect(mocks.buildScriptExecuteMock).not.toHaveBeenCalled();
+      expect(mocks.runScriptExecuteMock).toHaveBeenCalledWith(parsedArguments, 'test');
     });
 
     it('should do nothing if the script does not exist', async () => {
       const args = Arguments.create();
 
       const parsedArguments = Arguments.create({ env: 'test' });
-      argumentsParserMock.mockReturnValue(parsedArguments);
+      mocks.argumentsParserMock.mockReturnValue(parsedArguments);
 
       await execute();
 
-      expect(argumentsParserMock).toHaveBeenCalledWith(commandBuilderMock, args);
+      expect(mocks.argumentsParserMock).toHaveBeenCalledWith(mocks.commandBuilderMock, args);
 
-      expect(commandBuilderMock.setDescription).toHaveBeenCalledWith('Runs a script');
-      expect(commandBuilderMock.addArgument).toHaveBeenCalledWith('script', {
+      expect(mocks.commandBuilderMock.setDescription).toHaveBeenCalledWith('Runs a script');
+      expect(mocks.commandBuilderMock.addArgument).toHaveBeenCalledWith('script', {
         describe: 'The script to run',
         type: 'string',
         choices: ['install', 'build', 'run'],
       });
-      expect(commandBuilderMock.addOption).toHaveBeenCalledWith('env', {
+      expect(mocks.commandBuilderMock.addOption).toHaveBeenCalledWith('env', {
         describe: 'The execution environment',
         type: 'string',
         default: 'production',
       });
 
-      expect(installScriptExecuteMock).not.toHaveBeenCalled();
-      expect(buildScriptExecuteMock).not.toHaveBeenCalled();
-      expect(runScriptExecuteMock).not.toHaveBeenCalledWith();
+      expect(mocks.installScriptExecuteMock).not.toHaveBeenCalled();
+      expect(mocks.buildScriptExecuteMock).not.toHaveBeenCalled();
+      expect(mocks.runScriptExecuteMock).not.toHaveBeenCalledWith();
     });
   });
 });

@@ -1,6 +1,6 @@
-import { ModuleConstructor } from '../module';
-import { PrimitiveContainer } from '../primitive-container';
-import { Arguments } from '../utils/cli';
+import { ModuleConstructor } from '../module/index.js';
+import { PrimitiveContainer } from '../primitive-container/index.js';
+import { Arguments } from '../utils/cli.js';
 
 export enum INITIALIZATION_CONTEXT {
   INSTALL = 'INSTALL',
@@ -35,7 +35,13 @@ export type ModuleEventHandlers = {
 export type KernelEvent = keyof KernelEventHandlers;
 
 export interface ModuleMap {
-  [moduleName: string]: [ModuleConstructor, string[], string[]];
+  [moduleName: string]: [ctor: ModuleConstructor, deps: string[], envs: string[]];
+}
+
+enum MODULE_PROPERTY {
+  CONSTRUCTOR = 0,
+  DEPENDENCIES = 1,
+  ENVIRONMENTS = 2,
 }
 
 enum MODULE_STATE {
@@ -48,7 +54,7 @@ export class CircularReferenceError extends Error {}
 export class UnknownModuleError extends Error {}
 
 const EVENT_INITIALIZATION_CONTEXTS = {
-  init: (null as unknown) as INITIALIZATION_CONTEXT,
+  init: null as unknown as INITIALIZATION_CONTEXT,
   install: INITIALIZATION_CONTEXT.INSTALL,
   build: INITIALIZATION_CONTEXT.BUILD,
   run: INITIALIZATION_CONTEXT.RUN,
@@ -59,12 +65,11 @@ export class Kernel {
 
   private container: PrimitiveContainer;
 
-  public constructor(modules: ModuleMap, primitiveContainerData: Record<string, any>) {
+  public constructor(modules: ModuleMap, primitiveContainerData: Record<string, unknown>) {
     this.modules = modules;
     this.container = new PrimitiveContainer(primitiveContainerData);
   }
 
-  /* eslint-disable no-param-reassign, no-await-in-loop */
   private loadModules(
     events: Set<KernelEvent>,
     modulesToLoad: string[],
@@ -73,34 +78,40 @@ export class Kernel {
   ): ModuleEventHandlers {
     for (const moduleName of modulesToLoad) {
       const loadingState = modulesStates[moduleName];
-      if (loadingState !== MODULE_STATE.LOADED) {
-        if (loadingState === MODULE_STATE.LOADING) {
-          throw new CircularReferenceError(`Circular reference on ${moduleName}`);
-        }
-        modulesStates[moduleName] = MODULE_STATE.LOADING;
-        const currentModule = this.modules[moduleName];
-        if (!currentModule) {
-          throw new UnknownModuleError(
-            `Unknown module "${moduleName}".\nThis usually happens when a module relies on a dependency that has not been registered yet.\nPlease check your "alliage-modules.json" file`,
-          );
-        }
-        if (currentModule[1].length > 0) {
-          this.loadModules(events, currentModule[1], eventHandlers, modulesStates);
-        }
-        const moduleInstance = new currentModule[0]();
-        const moduleEventHandlers = moduleInstance.getKernelEventHandlers();
-        events.forEach((event) => {
-          const eventHandler = moduleEventHandlers[event];
-          if (eventHandler) {
-            eventHandlers[event].push(eventHandler);
-          }
-        });
-        modulesStates[moduleName] = MODULE_STATE.LOADED;
+      if (loadingState === MODULE_STATE.LOADED) {
+        continue;
       }
+      if (loadingState === MODULE_STATE.LOADING) {
+        throw new CircularReferenceError(`Circular reference on ${moduleName}`);
+      }
+
+      modulesStates[moduleName] = MODULE_STATE.LOADING;
+      const currentModule = this.modules[moduleName];
+      if (!currentModule) {
+        throw new UnknownModuleError(
+          `Unknown module "${moduleName}".\nThis usually happens when a module relies on a dependency that has not been registered yet.\nPlease check your "alliage-modules.json" file`,
+        );
+      }
+      if (currentModule[MODULE_PROPERTY.DEPENDENCIES].length > 0) {
+        this.loadModules(
+          events,
+          currentModule[MODULE_PROPERTY.DEPENDENCIES],
+          eventHandlers,
+          modulesStates,
+        );
+      }
+      const moduleInstance = new currentModule[MODULE_PROPERTY.CONSTRUCTOR]();
+      const moduleEventHandlers = moduleInstance.getKernelEventHandlers();
+      events.forEach((event) => {
+        const eventHandler = moduleEventHandlers[event];
+        if (eventHandler) {
+          eventHandlers[event].push(eventHandler);
+        }
+      });
+      modulesStates[moduleName] = MODULE_STATE.LOADED;
     }
     return eventHandlers;
   }
-  /* eslint-enable no-param-reassign, no-await-in-loop */
 
   public async install(args: Arguments, env: string) {
     await this.triggerEvent('install', args, env);
@@ -116,12 +127,11 @@ export class Kernel {
 
   private getModuleNamesByEnv(env: string) {
     return Object.keys(this.modules).filter((name) => {
-      const envs = this.modules[name][2];
+      const envs = this.modules[name][MODULE_PROPERTY.ENVIRONMENTS];
       return envs.length > 0 ? envs.includes(env) : true;
     });
   }
 
-  /* eslint-disable no-await-in-loop */
   private async triggerEvent(
     eventName: KernelEvent,
     args: Arguments,
@@ -137,8 +147,7 @@ export class Kernel {
     }
     this.container.freeze();
     for (const eventHandler of eventHandlers[eventName]) {
-      await eventHandler(args, env, this.container, undefined as any);
+      await (eventHandler as RegularKernelEventHandler)(args, env, this.container);
     }
   }
-  /* eslint-enable no-await-in-loop */
 }

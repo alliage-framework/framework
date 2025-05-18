@@ -1,22 +1,27 @@
 import path from 'path';
+import { vi, describe, it, expect } from 'vitest';
 
 import { AbstractScript } from '..';
 import { Kernel } from '../../kernel';
 
-jest.mock('../../kernel');
+vi.mock('../../kernel', () => {
+  const KernelMock = vi.fn();
+  KernelMock.prototype.build = vi.fn();
+  KernelMock.prototype.install = vi.fn();
+  KernelMock.prototype.run = vi.fn();
+  return { Kernel: KernelMock };
+});
 
 describe('core/script', () => {
   describe('AbstractScript', () => {
-    jest.doMock(path.resolve('./relative/path/1'), () => ({ default: { name: 'module1' } }), {
-      virtual: true,
-    });
-    jest.doMock(path.resolve('../relative/path/2'), () => ({ name: 'module2' }), { virtual: true });
-    jest.doMock('/relative/path/3', () => ({ name: 'module3' }), { virtual: true });
-    jest.doMock('global-module', () => ({ name: 'module4' }), { virtual: true });
+    vi.doMock(path.resolve('./relative/path/1'), () => ({ default: { name: 'module1' } }));
+    vi.doMock(path.resolve('../relative/path/2'), () => ({ default: { name: 'module2' } }));
+    vi.doMock('/relative/path/3', () => ({ default: { name: 'module3' } }));
+    vi.doMock('global-module', () => ({ default: { name: 'module4' } }));
 
-    jest.doMock(
+    vi.doMock(
       path.resolve('./alliage-modules.json'),
-      () => ({
+      () => ({ default: {
         module1: {
           module: './relative/path/1',
           deps: ['module2'],
@@ -35,21 +40,21 @@ describe('core/script', () => {
           module: 'global-module',
           deps: [],
         },
-      }),
-      { virtual: true },
+      }})
     );
 
-    it('should load the kernel when instanciated', () => {
+    it('should load the kernel when instanciated', async () => {
       let kernelMock;
       class ConcreteScript extends AbstractScript {
-        execute() {
+        async execute() {
+          await super.execute();
           kernelMock = this.getKernel();
         }
       }
 
       const script = new ConcreteScript({ initial_value: 'test' });
-      script.execute();
-
+      await script.execute();
+      
       expect(Kernel).toHaveBeenCalledWith(
         {
           module1: [{ name: 'module1' }, ['module2'], ['dev']],
@@ -60,6 +65,17 @@ describe('core/script', () => {
         { initial_value: 'test' },
       );
       expect(kernelMock).toBeInstanceOf(Kernel);
+    });
+
+    it('should throw an error if the kernel is not initialized', async () => {
+      class ConcreteScript extends AbstractScript {
+        async execute() {
+          this.getKernel();
+        }
+      }
+
+      const script = new ConcreteScript({ initial_value: 'test' });
+      await expect(script.execute()).rejects.toThrow('Script not initialized');
     });
   });
 });

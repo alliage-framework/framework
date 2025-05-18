@@ -1,3 +1,4 @@
+import { describe, it, expect } from 'vitest';
 import { AbstractModule } from '../../..';
 
 describe('core/module', () => {
@@ -10,4 +11,4 @@ describe('core/module', () => {
       expect(concreteModule.getKernelEventHandlers()).toEqual({});
     });
   });
-});
+}); 

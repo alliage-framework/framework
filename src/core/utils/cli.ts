@@ -1,12 +1,11 @@
-import yargs = require('yargs');
-
+import yargs, { Argv } from 'yargs';
 const CLI_PATTERNS: [RegExp, string][] = [
   [/npm-cli\.js$/, 'npm'],
   [/yarn\.js$/, 'yarn'],
+  [/pnpm-cli\.js$/, 'pnpm'],
+  [/bun$/, 'bun'],
+  [/deno$/, 'deno'],
 ];
-
-const EMPTY_VALUE = '@__EMTPY_VALUE__@';
-const FIRST_ARGUMENT = '@__FIRST_ARGUMENT__@';
 
 type ParsedArgs = { [key: string]: string | number | boolean };
 
@@ -35,16 +34,17 @@ export class Arguments {
           ? `${parentCommand}${command && command.length > 0 ? ` ${command}` : ''}`
           : command;
     } else if (process.env.npm_execpath && process.env.npm_lifecycle_event) {
-      this.command = `${CLI_PATTERNS.find(([pattern]) =>
-        pattern.test(process.env.npm_execpath as string),
-      )?.[1] ?? process.env.npm_execpath} ${process.env.npm_lifecycle_event}`;
+      this.command = `${
+        CLI_PATTERNS.find(([pattern]) => pattern.test(process.env.npm_execpath as string))?.[1] ??
+        process.env.npm_execpath
+      } ${process.env.npm_lifecycle_event}`;
     } else {
       this.command = command;
     }
   }
 
   get<T = string>(name: string): T {
-    return (this.parsedArgs[name] as unknown) as T;
+    return this.parsedArgs[name] as unknown as T;
   }
 
   getRemainingArgs() {
@@ -133,6 +133,16 @@ export class CommandBuilder {
   }
 }
 
+export class ArgumentParserValidationError extends Error {
+  constructor(public help: string) {
+    super('Invalid arguments');
+  }
+}
+
+export type ArgumentParserParseOptions = {
+  exitOnFailure: boolean;
+};
+
 export class ArgumentsParser {
   protected builder: CommandBuilder;
 
@@ -143,7 +153,7 @@ export class ArgumentsParser {
     this.arguments = baseArgs;
   }
 
-  protected parse() {
+  protected async parse({ exitOnFailure }: ArgumentParserParseOptions) {
     const builderArgs = this.builder.getArguments();
     const builderOptions = Object.entries(this.builder.getOptions());
     const hasArgs = builderArgs.length > 0;
@@ -153,49 +163,83 @@ export class ArgumentsParser {
       return this.arguments;
     }
 
-    const argumentList = hasArgs
-      ? builderArgs
-      : [
-          {
-            name: FIRST_ARGUMENT,
-            describe: 'no arguments required',
-            default: EMPTY_VALUE,
-          },
-        ];
-
-    const { _, $0, ...parsedArgs } = yargs(this.arguments.getRemainingArgs())
+    const yargsInstance = yargs(this.arguments.getRemainingArgs())
       .parserConfiguration({
         'unknown-options-as-args': true,
       })
-      .scriptName(this.arguments.getCommand())
-      .command(
-        `$0 ${argumentList
+      .scriptName(this.arguments.getCommand());
+
+    if (hasArgs) {
+      yargsInstance.command(
+        `$0 ${builderArgs
           .map((args) => (args.default ? `[${args.name}]` : `<${args.name}>`))
           .join(' ')}`,
-        this.builder.getDescription() as string,
-        (subYargs: yargs.Argv) => {
-          builderArgs.forEach(({ name, ...desc }) => subYargs.positional(name, desc as any));
-          builderOptions.forEach(([name, desc]) => subYargs.option(name, desc as any));
+        this.builder.getDescription(),
+        (subYargs: Argv) => {
+          builderArgs.forEach(({ name, ...desc }) =>
+            subYargs.positional(name, {
+              ...desc,
+              choices: this._convertChoices(desc.choices),
+            }),
+          );
+          builderOptions.forEach(([name, desc]) =>
+            subYargs.option(name, {
+              ...desc,
+              choices: this._convertChoices(desc.choices),
+            }),
+          );
         },
-      )
-      .help().argv;
+      );
+    } else {
+      builderOptions.forEach(([name, desc]) =>
+        yargsInstance.option(name, {
+          ...desc,
+          choices: this._convertChoices(desc.choices),
+        }),
+      );
+    }
 
-    // @ts-ignore
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars, camelcase
-    const { [FIRST_ARGUMENT]: _firstArg, ...args } = parsedArgs;
-    return this.arguments.createChild(
-      args as any,
-      // eslint-disable-next-line no-nested-ternary
-      hasArgs
-        ? _
-        : parsedArgs[FIRST_ARGUMENT] === EMPTY_VALUE
-        ? _
-        : [parsedArgs[FIRST_ARGUMENT] as string, ..._],
-      builderArgs.map(({ name }) => parsedArgs[name]).join(' '),
-    );
+    try {
+      const {
+        _,
+        $0: _scriptName,
+        ...parsedArgs
+      } = await yargsInstance
+        .help()
+        .showHelpOnFail(false)
+        .fail((_msg, err) => {
+          throw err ?? new Error('yargs_validation_error');
+        })
+        .parseAsync();
+
+      return this.arguments.createChild(
+        parsedArgs as ParsedArgs,
+        _.map((a) => a.toString()),
+        builderArgs.map(({ name }) => parsedArgs[name]).join(' '),
+      );
+    } catch (err) {
+      const help = await new Promise<string>((resolve) => yargsInstance.showHelp(resolve));
+      if (exitOnFailure) {
+        console.error(help);
+        process.exit(1);
+      }
+      if (err instanceof Error && err.message === 'yargs_validation_error') {
+        throw new ArgumentParserValidationError(help);
+        /* v8 ignore next 3 lines */
+      }
+      throw err;
+    }
   }
 
-  static parse(builder: CommandBuilder, baseArgs?: Arguments) {
-    return new ArgumentsParser(builder, baseArgs).parse();
+  private _convertChoices(choices: ArgumentDescrition['choices']) {
+    return choices?.map((c) => (typeof c === 'boolean' ? (c as true) || undefined : c));
+  }
+
+  static parse(
+    builder: CommandBuilder,
+    baseArgs?: Arguments,
+    { exitOnFailure = true }: Partial<ArgumentParserParseOptions> = {},
+  ) {
+    return new ArgumentsParser(builder, baseArgs).parse({ exitOnFailure });
   }
 }

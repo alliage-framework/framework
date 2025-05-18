@@ -1,4 +1,4 @@
-import { KernelEventHandlers } from '../kernel';
+import { KernelEventHandlers } from '../kernel/index.js';
 
 export interface IModule {
   getKernelEventHandlers(): KernelEventHandlers;

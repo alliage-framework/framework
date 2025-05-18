@@ -1,7 +1,7 @@
 import path from 'path';
 
-import { Kernel, ModuleMap } from '../kernel';
-import { Arguments } from '../utils/cli';
+import { Kernel, ModuleMap } from '../kernel/index.js';
+import { Arguments } from '../utils/cli.js';
 
 const LOCAL_MODULE_PATTERN = /^\.{0,2}\//;
 
@@ -14,37 +14,54 @@ export interface ModulesDefinition {
 }
 
 export abstract class AbstractScript {
-  private kernel: Kernel;
+  private kernel: Kernel | undefined;
 
-  public constructor(primitiveContainerData: Record<string, any>) {
-    this.kernel = this.loadKernel(primitiveContainerData);
+  public constructor(private primitiveContainerData: Record<string, unknown>) {}
+
+  public async init() {
+    this.kernel = await this.loadKernel(this.primitiveContainerData);
   }
 
-  /* eslint-disable import/no-dynamic-require, global-require */
-  private loadKernel(primitiveContainerData: Record<string, any>) {
-    const modulesDefinition: ModulesDefinition = require(path.resolve('./alliage-modules.json'));
+  private async loadKernel(primitiveContainerData: Record<string, unknown>) {
+    const modulesDefinition: ModulesDefinition = (
+      await import(path.resolve('./alliage-modules.json'), {
+        with: {
+          type: 'json',
+        },
+      })
+    ).default;
 
-    const modules: ModuleMap = Object.entries(modulesDefinition).reduce((acc, [name, def]) => {
-      const module = LOCAL_MODULE_PATTERN.test(def.module)
-        ? require(path.resolve(def.module))
-        : require(def.module);
+    const loadedModules = await Promise.all(
+      Object.entries(modulesDefinition).map(async ([name, def]) => {
+        const module = LOCAL_MODULE_PATTERN.test(def.module)
+          ? await import(path.resolve(def.module))
+          : await import(def.module);
+        return [name, [module.default, def.deps, def.envs ?? []]] as const;
+      }),
+    );
 
+    const modules: ModuleMap = loadedModules.reduce((acc, [name, [module, deps, envs]]) => {
       return {
         ...acc,
-        [name]: [module.default ?? module, def.deps, def.envs ?? []],
+        [name]: [module, deps, envs],
       };
     }, {});
+
     return new Kernel(modules, primitiveContainerData);
   }
-  /* eslint-disable import/no-dynamic-require, global-require */
 
   protected getKernel() {
+    if (!this.kernel) {
+      throw new Error('Script not initialized');
+    }
     return this.kernel;
   }
 
-  public abstract execute(args?: Arguments, env?: string): void | Promise<void>;
+  public async execute(_args?: Arguments, _env?: string) {
+    await this.init();
+  }
 }
 
 export interface ScriptConstructor {
-  new (primitiveContainerData: Record<string, any>): AbstractScript;
+  new (primitiveContainerData: Record<string, unknown>): AbstractScript;
 }
