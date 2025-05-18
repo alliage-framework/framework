@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "description": "Framework for building modular JavaScript applications",
   "email": "bo.lebon@gmail.com",
-  "repository": "git@github.com:alliage-framework/alliage-framework.git",
+  "repository": "https://github.com/alliage-framework/framework.git",
   "files": [
     "README.md",
     "LICENSE",
