@@ -2,6 +2,7 @@ import path from 'path';
 
 import { Kernel, ModuleMap } from '../kernel/index.js';
 import { Arguments } from '../utils/cli.js';
+import { pathToFileURL } from 'url';
 
 const LOCAL_MODULE_PATTERN = /^\.{0,2}\//;
 
@@ -24,7 +25,7 @@ export abstract class AbstractScript {
 
   private async loadKernel(primitiveContainerData: Record<string, unknown>) {
     const modulesDefinition: ModulesDefinition = (
-      await import(path.resolve('./alliage-modules.json'), {
+      await import(pathToFileURL(path.resolve('./alliage-modules.json')).href, {
         with: {
           type: 'json',
         },
@@ -34,7 +35,7 @@ export abstract class AbstractScript {
     const loadedModules = await Promise.all(
       Object.entries(modulesDefinition).map(async ([name, def]) => {
         const module = LOCAL_MODULE_PATTERN.test(def.module)
-          ? await import(path.resolve(def.module))
+          ? await import(pathToFileURL(path.resolve(def.module)).href)
           : await import(def.module);
         return [name, [module.default, def.deps, def.envs ?? []]] as const;
       }),
